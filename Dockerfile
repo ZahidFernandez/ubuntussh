@@ -1,18 +1,24 @@
-FROM php:7.2.13-fpm-alpine3.8
 
-ENV SSH_PORT 2222
+FROM python:3.4
 
-RUN apk add --update openssh supervisor \
-&& rm  -rf /tmp/* /var/cache/apk/*
-RUN mkdir -p /var/run/sshd /var/log/supervisor
-RUN echo 'root:Docker!' | chpasswd
+RUN mkdir /code
+WORKDIR /code
+ADD requirements.txt /code/
+RUN pip install -r requirements.txt
+ADD . /code/
+
+# ssh
+ENV SSH_PASSWD "root:Docker!"
+RUN apt-get update \
+        && apt-get install -y --no-install-recommends dialog \
+        && apt-get update \
+	&& apt-get install -y --no-install-recommends openssh-server \
+	&& echo "$SSH_PASSWD" | chpasswd 
 
 COPY sshd_config /etc/ssh/
-ADD supervisord.conf /etc/supervisord.conf
-COPY docker-entrypoint.sh /usr/local/bin/
-RUN chmod -R +x /usr/local/bin
-
-EXPOSE 2222
-
-ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["supervisord", "--nodaemon", "--configuration", "/etc/supervisord.conf"]
+COPY init.sh /usr/local/bin/
+	
+RUN chmod u+x /usr/local/bin/init.sh
+EXPOSE 8000 2222
+#CMD ["python", "/code/manage.py", "runserver", "0.0.0.0:8000"]
+ENTRYPOINT ["init.sh"]
